@@ -1,22 +1,68 @@
+use std::str::FromStr;
+
 use serde::{Deserialize, Deserializer};
 
 #[derive(Deserialize, Debug)]
 pub struct Config {
-    pub tcp_forwards: Option<Vec<PortForward>>,
-    pub udp_forwards: Option<Vec<PortForward>>,
+    pub relays: Option<Vec<Relay>>,
 }
 
 impl Config {
     pub fn load_config(filename: &String) -> Self {
+        println!("Loading config from {} ...", filename);
         let contents = std::fs::read_to_string(filename).expect("Failed to read config file");
         toml::from_str(&contents).expect("Failed to parse config file")
     }
 }
 
-#[derive(Deserialize, Debug)]
-pub struct PortForward {
+#[derive(Debug)]
+pub struct Relay {
+    pub protocol: Protocol,
     pub addr: std::net::Ipv4Addr,
-    pub port: PortRange,
+    pub port_range: PortRange,
+}
+
+impl<'de> Deserialize<'de> for Relay {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+        if let Some((protocol, target)) = s.split_once("://") {
+            let protocol = protocol.parse().map_err(serde::de::Error::custom)?;
+            if let Some((addr, port)) = target.rsplit_once(':') {
+                let addr = addr.parse().map_err(serde::de::Error::custom)?;
+                let port_range = port.parse().map_err(serde::de::Error::custom)?;
+                return Ok(Relay {
+                    protocol,
+                    addr,
+                    port_range,
+                });
+            } else {
+                return Err(serde::de::Error::custom("Invalid address format"));
+            }
+        } else {
+            Err(serde::de::Error::custom("Invalid relay rule format"))
+        }
+    }
+}
+
+#[derive(Debug)]
+pub enum Protocol {
+    TCP,
+    UDP,
+}
+
+impl FromStr for Protocol {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "tcp" => Ok(Protocol::TCP),
+            "udp" => Ok(Protocol::UDP),
+            _ => Err(format!("Invalid protocol: {}", s)),
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -34,18 +80,22 @@ impl std::fmt::Display for PortRange {
     }
 }
 
-impl<'de> Deserialize<'de> for PortRange {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let s = String::deserialize(deserializer)?;
+impl FromStr for PortRange {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
         if let Some((start, end)) = s.split_once("..") {
-            let start = start.parse().map_err(serde::de::Error::custom)?;
-            let end = end.parse().map_err(serde::de::Error::custom)?;
-            Ok(PortRange::Range { begin: start, end })
+            let start = start
+                .parse()
+                .map_err(|_| "Invalid start port".to_string())?;
+            let end = end.parse().map_err(|_| "Invalid end port".to_string())?;
+            if start < end {
+                Ok(PortRange::Range { begin: start, end })
+            } else {
+                Err("Start port must be less than end port".to_string())
+            }
         } else {
-            let single = s.parse().map_err(serde::de::Error::custom)?;
+            let single = s.parse().map_err(|_| "Invalid port".to_string())?;
             Ok(PortRange::Single(single))
         }
     }

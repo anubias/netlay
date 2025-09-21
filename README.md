@@ -1,20 +1,83 @@
-# NETwork reLAY
+# NETwork reLAY (`netlay`)
 
-`netlay` is a command line Linux utility created for relaying TCP/UDP sockets between different machines. This is typically useful for bridging traffic across networks that are not routed together. This comes handy during development or quick maintenance or debugging sessions.
+`netlay` is a command-line Linux utility for relaying TCP and UDP sockets between machines. It is useful for bridging traffic across networks that are not directly routed together — ideal for development, maintenance, or debugging sessions.
 
-## Synopsis
+## Features
 
-Being a command line utility, the utility takes a few (optional) arguments.
+- **Bidirectional TCP/UDP forwarding** between local and remote endpoints
+- **Configurable via TOML file** or command-line arguments
+- **Supports port ranges** (e.g., `8000..8010`) and single ports
+- **Asynchronous I/O** for efficient, scalable performance using [Tokio](https://tokio.rs/)
+- **Minimal dependencies**, easy to deploy
+
+## Usage
 
 ```sh
 netlay [OPTIONS]
 ```
 
-OPTIONS:
+### Options
 
-```sh
--c, --config-file <CONFIG_FILE>     Path to the configuration file
--h, --help                          Print help
+| Option | Description |
+|--------|-------------|
+| `-c`, `--config-file <CONFIG_FILE>` | Path to the configuration file (default: `/etc/netlay.conf`) |
+| `-r`, `--relay <RELAY_URL>`         | Relay traffic according to this rule, bypassing the config file |
+| `-h`, `--help`                      | Print help information |
+
+### RELAY_URL Syntax
+
+```text
+<tcp|udp>://<IPv4_address>:<port_range>
 ```
 
-If no argument is provided, `netlay` will read the default configuration file located at `/etc/netlay.conf`. If you want to use a custom (or temporary) configuration file, please use the `-c` option.
+- `<tcp|udp>`: Socket type (TCP or UDP)
+- `<IPv4_address>`: Destination address to forward traffic to
+- `<port_range>`: Port number or range (e.g., `8080` or `8000..8010`)
+
+### Examples
+
+Relay traffic according to a custom configuration file:
+
+```sh
+netlay --config-file my_file.conf
+```
+
+Relay TCP traffic on port 80 to `192.168.100.200`:
+
+```sh
+netlay --relay tcp://192.168.100.200:80
+```
+
+Relay UDP traffic on all ports between 1000 and 1010 to `192.168.100.200`:
+
+```sh
+netlay --relay udp://192.168.100.200:1000..1010
+```
+
+## Configuration File Example (`netlay.conf`)
+
+The configuration file(s) need to follow the TOML syntax. An example is depicted below:
+
+```toml
+rules = [
+    "tcp://192.168.1.100:8080",
+    "udp://192.168.1.101:5353",
+    "tcp://10.0.0.2:8000..8010"
+]
+```
+
+## How It Works
+
+`netlay` uses asynchronous processing (via [Tokio](https://tokio.rs/)) to efficiently relay traffic. Unlike synchronous tools that require a thread per connection, `netlay` leverages a thread pool sized to available CPU cores, enabling high performance and scalability for many simultaneous connections.
+
+## License
+
+This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
+
+## Contributing
+
+Contributions, bug reports, and feature requests are welcome! Please open an issue or submit a pull request.
+
+## Author
+
+Aurelian Pop

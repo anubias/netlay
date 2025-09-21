@@ -1,11 +1,12 @@
 use std::net::{Ipv4Addr, SocketAddr};
 
+use serde::{de::value::StringDeserializer, Deserialize};
 use tokio::{
     io::copy_bidirectional,
     net::{TcpListener, TcpStream, UdpSocket},
 };
 
-use crate::config::PortRange;
+use crate::config::{Config, Relay};
 
 mod cmdline;
 mod config;
@@ -13,36 +14,48 @@ mod config;
 #[tokio::main]
 async fn main() {
     let args = cmdline::Args::parse();
-    let config = config::Config::load_config(&args.config_file);
+    let config = if let Some(user_rule) = args.relay {
+        let deserializer = StringDeserializer::<serde::de::value::Error>::new(user_rule);
+        let relay = config::Relay::deserialize(deserializer)
+            .expect("Failed to parse relay rule from command line");
+        Config {
+            relays: Some(vec![relay]),
+        }
+    } else {
+        Config::load_config(&args.config_file)
+    };
 
-    if let Some(tcp_forwards) = config.tcp_forwards {
-        for forward in &tcp_forwards {
-            match forward.port {
-                PortRange::Single(port) => forward_tcp_port(forward.addr, port),
-                PortRange::Range { begin, end } => {
-                    for port in begin..=end {
-                        forward_tcp_port(forward.addr, port);
-                    }
+    if let Some(rules) = config.relays {
+        for rule in &rules {
+            discriminate_relay(rule);
+        }
+
+        // Prevent main from exiting immediately
+        tokio::signal::ctrl_c().await.unwrap();
+    } else {
+        println!("Nothing to do");
+    }
+}
+
+fn discriminate_relay(relay: &Relay) {
+    match relay.protocol {
+        config::Protocol::TCP => match relay.port_range {
+            config::PortRange::Single(port) => forward_tcp_port(relay.addr, port),
+            config::PortRange::Range { begin, end } => {
+                for port in begin..=end {
+                    forward_tcp_port(relay.addr, port);
                 }
             }
-        }
-    }
-
-    if let Some(udp_forwards) = config.udp_forwards {
-        for forward in &udp_forwards {
-            match forward.port {
-                PortRange::Single(port) => forward_udp_port(forward.addr, port),
-                PortRange::Range { begin, end } => {
-                    for port in begin..=end {
-                        forward_udp_port(forward.addr, port);
-                    }
+        },
+        config::Protocol::UDP => match relay.port_range {
+            config::PortRange::Single(port) => forward_udp_port(relay.addr, port),
+            config::PortRange::Range { begin, end } => {
+                for port in begin..=end {
+                    forward_udp_port(relay.addr, port);
                 }
             }
-        }
+        },
     }
-
-    // Prevent main from exiting immediately
-    tokio::signal::ctrl_c().await.unwrap();
 }
 
 fn forward_tcp_port(addr: Ipv4Addr, port: u16) {
