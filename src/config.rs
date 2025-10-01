@@ -10,8 +10,9 @@ pub struct Config {
 impl Config {
     pub fn load_config(filename: &String) -> Self {
         println!("Loading config from {} ...", filename);
-        let contents = std::fs::read_to_string(filename).expect("Failed to read config file");
-        toml::from_str(&contents).expect("Failed to parse config file")
+        let contents = std::fs::read_to_string(filename)
+            .expect(format!("Failed to read config file {filename}").as_str());
+        toml::from_str(&contents).expect(format!("Failed to parse config file {filename}").as_str())
     }
 }
 
@@ -39,10 +40,14 @@ impl<'de> Deserialize<'de> for Relay {
                     port_range,
                 });
             } else {
-                return Err(serde::de::Error::custom("Invalid address format"));
+                return Err(serde::de::Error::custom(format!(
+                    "Invalid target format: {target}"
+                )));
             }
         } else {
-            Err(serde::de::Error::custom("Invalid relay rule format"))
+            Err(serde::de::Error::custom(format!(
+                "Invalid relay rule format {s}"
+            )))
         }
     }
 }
@@ -60,7 +65,7 @@ impl FromStr for Protocol {
         match s.to_lowercase().as_str() {
             "tcp" => Ok(Protocol::TCP),
             "udp" => Ok(Protocol::UDP),
-            _ => Err(format!("Invalid protocol: {}", s)),
+            _ => Err(format!("Invalid protocol: {s}")),
         }
     }
 }
@@ -74,8 +79,8 @@ pub enum PortRange {
 impl std::fmt::Display for PortRange {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            PortRange::Single(port) => write!(f, "{}", port),
-            PortRange::Range { begin: start, end } => write!(f, "{}..{}", start, end),
+            PortRange::Single(port) => write!(f, "{port}"),
+            PortRange::Range { begin: start, end } => write!(f, "{start}..{end}"),
         }
     }
 }
@@ -83,19 +88,23 @@ impl std::fmt::Display for PortRange {
 impl FromStr for PortRange {
     type Err = String;
 
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        if let Some((start, end)) = s.split_once("..") {
-            let start = start
+    fn from_str(port: &str) -> Result<Self, Self::Err> {
+        if let Some((begin, end)) = port.split_once("..") {
+            let begin = begin
                 .parse()
-                .map_err(|_| "Invalid start port".to_string())?;
-            let end = end.parse().map_err(|_| "Invalid end port".to_string())?;
-            if start < end {
-                Ok(PortRange::Range { begin: start, end })
+                .map_err(|_| format!("Invalid port range beginning {begin}"))?;
+            let end = end
+                .parse()
+                .map_err(|_| format!("Invalid port range ending {end}"))?;
+            if begin < end {
+                Ok(PortRange::Range { begin, end })
             } else {
-                Err("Start port must be less than end port".to_string())
+                Err(format!(
+                    "Beginning of port range ({begin}) must be lower than the ending of the port range ({end})"
+                ))
             }
         } else {
-            let single = s.parse().map_err(|_| "Invalid port".to_string())?;
+            let single = port.parse().map_err(|_| format!("Invalid port {port}"))?;
             Ok(PortRange::Single(single))
         }
     }

@@ -33,7 +33,7 @@ async fn main() {
         // Prevent main from exiting immediately
         tokio::signal::ctrl_c().await.unwrap();
     } else {
-        println!("Nothing to do");
+        println!("Nothing to do. Quiting...");
     }
 }
 
@@ -65,7 +65,7 @@ fn forward_tcp_port(addr: Ipv4Addr, port: u16) {
     tokio::spawn(async move {
         let listener = TcpListener::bind(local_addr)
             .await
-            .expect("Failed to bind TCP socket");
+            .expect(format!("Failed to bind TCP socket {addr}:{port}").as_str());
 
         loop {
             match listener.accept().await {
@@ -74,7 +74,7 @@ fn forward_tcp_port(addr: Ipv4Addr, port: u16) {
                     connect_and_transfer_tcp_traffic(remote_addr, inbound);
                 }
                 Err(e) => {
-                    eprintln!("Accept error: {}", e);
+                    eprintln!("Accept error on sockcet {addr}:{port} ({e})");
                 }
             }
         }
@@ -88,7 +88,7 @@ fn connect_and_transfer_tcp_traffic(remote_addr: SocketAddr, mut inbound: TcpStr
                 let _ = copy_bidirectional(&mut inbound, &mut outbound).await;
             }
             Err(e) => {
-                eprintln!("Failed to connect to remote: {}", e);
+                eprintln!("Failed to connect to remote {remote_addr}: ({e})");
             }
         }
     });
@@ -101,8 +101,7 @@ fn forward_udp_port(addr: Ipv4Addr, port: u16) {
     tokio::spawn(async move {
         let socket = UdpSocket::bind(local_addr)
             .await
-            .expect("Failed to bind UDP socket");
-        println!("UDP listening on {}", local_addr);
+            .expect(format!("Failed to bind UDP socket {addr}:{port}").as_str());
 
         let mut buf = vec![0u8; 65535];
 
@@ -118,7 +117,7 @@ fn forward_udp_port(addr: Ipv4Addr, port: u16) {
                     }
                 }
                 Err(e) => {
-                    eprintln!("UDP recv error: {}", e);
+                    eprintln!("UDP recv error: {e}");
                 }
             }
         }
