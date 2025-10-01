@@ -1,5 +1,6 @@
 use std::str::FromStr;
 
+use log::error;
 use serde::{Deserialize, Deserializer};
 
 #[derive(Deserialize, Debug)]
@@ -9,10 +10,19 @@ pub struct Config {
 
 impl Config {
     pub fn load_config(filename: &String) -> Self {
-        println!("Loading config from {} ...", filename);
-        let contents = std::fs::read_to_string(filename)
-            .expect(format!("Failed to read config file {filename}").as_str());
-        toml::from_str(&contents).expect(format!("Failed to parse config file {filename}").as_str())
+        match std::fs::read_to_string(filename) {
+            Ok(file_contents) => match toml::from_str(&file_contents) {
+                Ok(config) => config,
+                Err(e) => {
+                    error!("Failed to parse config file {filename}: {e}");
+                    panic!();
+                }
+            },
+            Err(e) => {
+                error!("Failed to read config file {filename}: {e}");
+                panic!()
+            }
+        }
     }
 }
 
