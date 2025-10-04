@@ -1,7 +1,11 @@
 [package]
 name = "netlay"
+description = "Netlay is a command-line Linux utility for asynchronously relaying TCP and UDP sockets between machines."
 version = "0.1.0"
 edition = "2024"
+authors = ["Aurelian Pop <8299590+anubias@users.noreply.github.com>"]
+readme = "README.md"
+license = "MIT"
 
 [dependencies]
 chrono = "0.4.42"
@@ -11,3 +15,35 @@ log = "0.4.28"
 serde = { version = "1.0.225", features = ["derive"] }
 tokio = { version = "1.47.1", features = ["full"] }
 toml = "0.9.6"
+
+[package.metadata.deb]
+copyright = "Copyright © 2025 Aurelian Pop"
+license-file = ["LICENSE", "1"]
+section = "net"
+priority = "optional"
+assets = [
+    [
+        "target/release/netlay",
+        "/usr/bin/netlay",
+        "755",
+    ],
+    [
+        "res/netlay.1",
+        "/usr/share/man/man1/netlay.1",
+        "644",
+    ],
+    [
+        "res/netlay.conf",
+        "/etc/netlay/netlay.conf",
+        "644",
+    ],
+    [
+        "res/netlay.log",
+        "/var/log/netlay/netlay.log",
+        "644",
+    ],
+]
+breaks = "netlay"
+conflicts = "netlay"
+provides = "netlay"
+replaces = "netlay"
