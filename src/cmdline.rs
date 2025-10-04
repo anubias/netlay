@@ -2,7 +2,7 @@ use clap::Parser;
 
 #[derive(Parser, Debug)]
 #[command(
-    after_help = r#"If no arguments are given, the configuration file at /etc/netlay.conf will be used.
+    after_help = r#"If no arguments are given, the configuration file at /etc/netlay/netlay.conf will be used.
 
 RELAY_URL format:
   <tcp|udp>://<IPv4_address>:<port_range>
@@ -24,7 +24,7 @@ Examples:
 )]
 pub struct Args {
     /// Path to the configuration file
-    #[arg(default_value = "/etc/netlay.conf", short, long)]
+    #[arg(default_value = "/etc/netlay/netlay.conf", short, long)]
     pub config_file: String,
 
     /// Only relay traffic according to this rule, bypassing the config file

@@ -1,0 +1,75 @@
+.TH NETLAY 1 "October 2025" "netlay 0.1.0" "User Commands"
+.SH NAME
+netlay \- relay TCP and UDP traffic between networks
+
+.SH SYNOPSIS
+.B netlay
+[\fIOPTIONS\fR]
+
+.SH DESCRIPTION
+A command-line utility for asynchronously relaying TCP and UDP sockets between machines. Useful for bridging traffic across networks that are not directly routed together, and is ideal for development, maintenance, or debugging sessions.
+
+.SH OPTIONS
+.TP
+.BR \-c ", " \-\-config-file " <CONFIG_FILE>"
+Path to the configuration file (default: /etc/netlay/netlay.conf).
+
+.TP
+.BR \-r ", " \-\-relay " <RELAY_URL>"
+Relay traffic according to this rule, bypassing the config file.
+
+.TP
+.BR \-h ", " \-\-help
+Print help information.
+
+.SH RELAY URL FORMAT
+.PP
+The \fBRELAY_URL\fR argument must be in the following format:
+.PP
+.RS
+<tcp|udp>://<IPv4_address>:<port_range>
+.RE
+.PP
+Where:
+.RS
+.IP \(bu 2
+\fBtcp|udp\fR: Socket type (TCP or UDP)
+.IP \(bu 2
+\fBIPv4_address\fR: Destination address to forward traffic to
+.IP \(bu 2
+\fBport_range\fR: Port number or range (e.g., 8080 or 8000..8010)
+.RE
+
+.SH EXAMPLES
+.TP
+Relay traffic according to a custom configuration file:
+.B
+netlay --config-file my_file.toml
+
+.TP
+Relay TCP traffic on port 80 to 192.168.100.200:
+.B
+netlay --relay tcp://192.168.100.200:80
+
+.TP
+Relay UDP traffic on all ports between 1000 and 1010 to 192.168.100.200:
+.B
+netlay --relay udp://192.168.100.200:1000..1010
+
+.SH CONFIGURATION FILE
+.PP
+The configuration file is in TOML format. Example:
+.PP
+.RS
+relays = [
+    "tcp://192.168.1.100:8080",
+    "udp://192.168.1.101:5353",
+    "tcp://10.0.0.2:8000..8010"
+]
+.RE
+
+.SH AUTHOR
+Aurelian Pop
+
+.SH LICENSE
+MIT License

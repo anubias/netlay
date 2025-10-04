@@ -1,6 +1,6 @@
-# NETwork reLAY (`netlay`)
+# *NET*work re*LAY* (`netlay`)
 
-`netlay` is a command-line Linux utility for relaying TCP and UDP sockets between machines. It is useful for bridging traffic across networks that are not directly routed together — ideal for development, maintenance, or debugging sessions.
+A command-line Linux utility for asynchronously relaying TCP and UDP sockets between machines. Useful for bridging traffic across networks that are not directly routed together — ideal for development, maintenance, or debugging sessions.
 
 ## Features
 
@@ -18,13 +18,13 @@ netlay [OPTIONS]
 
 ### Options
 
-| Option | Description |
-|--------|-------------|
-| `-c`, `--config-file <CONFIG_FILE>` | Path to the configuration file (default: `/etc/netlay.conf`) |
-| `-r`, `--relay <RELAY_URL>`         | Relay traffic according to this rule, bypassing the config file |
-| `-h`, `--help`                      | Print help information |
+| Option                              | Description                                                         |
+|-------------------------------------|---------------------------------------------------------------------|
+| `-c`, `--config-file <CONFIG_FILE>` | Path to the configuration file (default: `/etc/netlay/netlay.conf`) |
+| `-r`, `--relay <RELAY_URL>`         | Relay traffic according to this rule, bypassing the config file     |
+| `-h`, `--help`                      | Print help information                                              |
 
-### RELAY_URL Syntax
+### RELAY_URL syntax
 
 ```text
 <tcp|udp>://<IPv4_address>:<port_range>
@@ -54,21 +54,21 @@ Relay UDP traffic on all ports between 1000 and 1010 to `192.168.100.200`:
 netlay --relay udp://192.168.100.200:1000..1010
 ```
 
-## Configuration File Example (`netlay.conf`)
+## Configuration file example (`netlay.conf`)
 
 The configuration file(s) need to follow the TOML syntax. An example is depicted below:
 
 ```toml
-rules = [
+relays = [
     "tcp://192.168.1.100:8080",
     "udp://192.168.1.101:5353",
     "tcp://10.0.0.2:8000..8010"
 ]
 ```
 
-## How It Works
+## How it works
 
-`netlay` uses asynchronous processing (via [Tokio](https://tokio.rs/)) to efficiently relay traffic. Unlike synchronous tools that require a thread per connection, `netlay` leverages a thread pool sized to available CPU cores, enabling high performance and scalability for many simultaneous connections.
+What makes this utility stand out is the use of asynchronous processing (via [Tokio](https://tokio.rs/)) to efficiently relay traffic. Unlike synchronous tools that require a thread per connection, `netlay` leverages a thread pool sized to available CPU cores, enabling high performance and scalability for many simultaneous connections.
 
 ## License
 
