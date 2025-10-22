@@ -2,7 +2,7 @@ use std::net::{Ipv4Addr, SocketAddr};
 
 use chrono::Local;
 use fern::Dispatch;
-use log::{error, info, LevelFilter};
+use log::{debug, error, info, trace, warn, LevelFilter};
 use serde::{de::value::StringDeserializer, Deserialize};
 use tokio::{
     io::copy_bidirectional,
@@ -103,28 +103,25 @@ fn relay_tcp_port(addr: Ipv4Addr, port: u16) {
         let listener = match TcpListener::bind(local_addr).await {
             Ok(l) => l,
             Err(e) => {
-                error!("Failed to bind TCP socket {addr}:{port} {e}");
+                error!("Failed to bind TCP socket {local_addr} {e}");
                 return;
             }
         };
 
-        info!("Listening on TCP port {port} ...");
+        info!("Listening on local TCP port {port} ...");
 
         loop {
             match listener.accept().await {
                 Ok((inbound, _)) => {
                     info!(
-                        "Accepted TCP connection from {}",
-                        inbound
-                            .peer_addr()
-                            .unwrap_or(SocketAddr::from(([0, 0, 0, 0], 0)))
+                        "Accepted TCP connection from {} on local port {port}",
+                        inbound.peer_addr().unwrap_or(remote_addr)
                     );
-                    let remote_addr = remote_addr;
                     //Start a new task to handle this connection independently while waiting for another one.
                     connect_and_transfer_tcp_traffic(remote_addr, inbound);
                 }
                 Err(e) => {
-                    error!("Accept error on sockcet {addr}:{port} {e}");
+                    error!("Accept error on socket {remote_addr} {e}");
                 }
             }
         }
@@ -135,7 +132,16 @@ fn connect_and_transfer_tcp_traffic(remote_addr: SocketAddr, mut inbound: TcpStr
     tokio::spawn(async move {
         match TcpStream::connect(remote_addr).await {
             Ok(mut outbound) => {
-                let _ = copy_bidirectional(&mut inbound, &mut outbound).await;
+                let res = copy_bidirectional(&mut inbound, &mut outbound).await;
+                match res {
+                    Ok((a_to_b, b_to_a)) => {
+                        trace!("TCP connection to {remote_addr} closed.");
+                        trace!("Transferred {a_to_b} total bytes from inbound and {b_to_a} total bytes from outbound.");
+                    }
+                    Err(e) => {
+                        error!("TCP data transfer error with {}: {e}", remote_addr);
+                    }
+                }
             }
             Err(e) => {
                 error!("Failed to connect to remote {remote_addr} {e}");
@@ -152,28 +158,42 @@ fn relay_udp_port(addr: Ipv4Addr, port: u16) {
         let socket = match UdpSocket::bind(local_addr).await {
             Ok(s) => s,
             Err(e) => {
-                error!("Failed to bind UDP socket {addr}:{port} {e}");
+                error!("Failed to bind UDP socket {local_addr} {e}");
                 return;
             }
         };
 
-        info!("Listening on UDP port {port} ...");
+        info!("Listening on local UDP port {port} ...");
 
-        let mut buf = vec![0u8; 8192];
+        const BUFFER_SIZE: usize = 65536; // Using maximum UDP packet size, to avoid loss of data
+        let mut buf = vec![0u8; BUFFER_SIZE];
         loop {
             match socket.recv_from(&mut buf).await {
-                Ok((len, src_addr)) => {
+                Ok((recv_len, src_addr)) => {
+                    debug!("Received UDP packet ({recv_len} bytes) from {src_addr} on local port {port}");
+                    if recv_len == BUFFER_SIZE {
+                        warn!("Received UDP packet may be truncated (UDP packet size equals to internal buffer size)");
+                    }
+
                     // Forward to remote
                     if src_addr != remote_addr {
                         // Send any received packet not originating from the remote address to the remote address
-                        let _ = socket.send_to(&buf[..len], remote_addr).await;
+                        let res = socket.send_to(&buf[..recv_len], remote_addr).await;
+                        match res {
+                            Ok(send_len) => trace!("Forwarded UDP packet ({send_len} bytes) from {src_addr} to {remote_addr}"),
+                            Err(e) => error!("UDP send error to {remote_addr}: {e}"),
+                        }
                     } else {
                         // Forward any received packet from the remote address back to the original sender
-                        let _ = socket.send_to(&buf[..len], src_addr).await;
+                        let res = socket.send_to(&buf[..recv_len], src_addr).await;
+                        match res {
+                            Ok(send_len) => trace!("Forwarded UDP packet ({send_len} bytes) from {remote_addr} to {src_addr}"),
+                            Err(e) => error!("UDP send error to {src_addr}: {e}"),
+                        }
                     }
                 }
                 Err(e) => {
-                    error!("UDP recv error: {e}");
+                    error!("UDP recv error from {remote_addr} {e}");
                 }
             }
         }
