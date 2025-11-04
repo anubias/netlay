@@ -1,4 +1,10 @@
-use std::net::{Ipv4Addr, SocketAddr};
+use std::{
+    env,
+    fs::OpenOptions,
+    net::{Ipv4Addr, SocketAddr},
+    os::unix::io::AsRawFd,
+    process::exit,
+};
 
 use chrono::Local;
 use fern::Dispatch;
@@ -14,40 +20,22 @@ use crate::config::{Config, Relay};
 mod cmdline;
 mod config;
 
-#[tokio::main]
-async fn main() {
-    const LOG_FILE_NAME: &str = "/var/log/netlay/netlay.log";
-
-    let log_file_res = fern::log_file(LOG_FILE_NAME);
-    let mut log_dispatch = Dispatch::new()
-        .format(|out, message, record| {
-            out.finish(format_args!(
-                "{} -- {}: {}",
-                Local::now().format("%Y-%m-%d %H:%M:%S"),
-                record.level(),
-                message
-            ))
-        })
-        .level(LevelFilter::Info)
-        .chain(std::io::stdout());
-
-    match log_file_res {
-        Ok(log_file) => log_dispatch = log_dispatch.chain(log_file),
-        Err(e) => {
-            error!(
-                "Failed to open log file {LOG_FILE_NAME}, logs will only go to the console: {e}"
-            );
-        }
-    }
-
-    if let Err(e) = log_dispatch.apply() {
-        eprintln!("Failed to initialize logging: {e}");
-        return;
-    }
-
+fn main() -> std::io::Result<()> {
     let args = cmdline::Args::parse();
-    let config = if let Some(user_rule) = args.relay {
-        let deserializer = StringDeserializer::<serde::de::value::Error>::new(user_rule);
+    init_logging(args.daemon_mode)?;
+
+    if args.daemon_mode {
+        daemonize()?;
+    }
+    async_main(args);
+
+    Ok(())
+}
+
+#[tokio::main]
+async fn async_main(args: cmdline::Args) {
+    let config = if let Some(relay_rule) = args.relay {
+        let deserializer = StringDeserializer::<serde::de::value::Error>::new(relay_rule);
         match config::Relay::deserialize(deserializer) {
             Ok(relay) => Config {
                 relays: Some(vec![relay]),
@@ -72,6 +60,104 @@ async fn main() {
     } else {
         info!("Nothing to do. Quiting...");
     }
+}
+
+fn init_logging(daemon_mode: bool) -> std::io::Result<()> {
+    let mut log_dispatch = Dispatch::new()
+        .format(|out, message, record| {
+            out.finish(format_args!(
+                "{} -- {}: {}",
+                Local::now().format("%Y-%m-%d %H:%M:%S"),
+                record.level(),
+                message
+            ))
+        })
+        .level(LevelFilter::Info);
+
+    if daemon_mode {
+        const LOG_FILE_NAME: &str = "/var/log/netlay/netlay.log";
+
+        let log_file_res = fern::log_file(LOG_FILE_NAME);
+        log_dispatch = match log_file_res {
+            Ok(log_file) => log_dispatch.chain(log_file),
+            Err(e) => {
+                eprintln!("Failed to open log file {LOG_FILE_NAME}: {e}");
+                return std::io::Result::Err(e);
+            }
+        };
+    } else {
+        log_dispatch = log_dispatch.chain(std::io::stdout());
+    }
+
+    if let Err(e) = log_dispatch.apply() {
+        eprintln!("Failed to initialize logging: {e}");
+        return std::io::Result::Err(std::io::Error::new(
+            std::io::ErrorKind::Other,
+            "Failed to initialize logging",
+        ));
+    }
+
+    Ok(())
+}
+
+fn daemonize() -> std::io::Result<()> {
+    // Double-fork daemonization
+    unsafe {
+        match libc::fork() {
+            -1 => return Err(std::io::Error::last_os_error()),
+            0 => {}                 //child continues
+            _parent_pid => exit(0), // parent exits
+        }
+
+        // Create a new session and become session leader
+        if libc::setsid() == -1 {
+            eprintln!("Failed to create new session for daemon process");
+            return Err(std::io::Error::last_os_error());
+        }
+
+        // Second fork to prevent reacquiring a controlling terminal
+        match libc::fork() {
+            -1 => return Err(std::io::Error::last_os_error()),
+            0 => {}                 // grandchild continues
+            _parent_pid => exit(0), // intermediate exits
+        }
+    }
+
+    // reset file mode creation mask
+    unsafe { libc::umask(0) };
+
+    // change working dir to root
+    env::set_current_dir("/")?;
+
+    // redirect stdio to /dev/null (reuse existing helper)
+    redirect_stdio_to_devnull()?;
+
+    Ok(())
+}
+
+fn redirect_stdio_to_devnull() -> std::io::Result<()> {
+    // Open /dev/null for read+write
+    let devnull = OpenOptions::new()
+        .read(true)
+        .write(true)
+        .open("/dev/null")?;
+    let fd = devnull.as_raw_fd();
+
+    // Duplicate /dev/null onto stdin/stdout/stderr
+    unsafe {
+        if libc::dup2(fd, libc::STDIN_FILENO) == -1 {
+            return Err(std::io::Error::last_os_error());
+        }
+        if libc::dup2(fd, libc::STDOUT_FILENO) == -1 {
+            return Err(std::io::Error::last_os_error());
+        }
+        if libc::dup2(fd, libc::STDERR_FILENO) == -1 {
+            return Err(std::io::Error::last_os_error());
+        }
+    }
+
+    // devnull is dropped here; the duplicated fds remain valid
+    Ok(())
 }
 
 fn discriminate_relay(relay: &Relay) {

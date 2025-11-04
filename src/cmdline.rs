@@ -27,6 +27,10 @@ pub struct Args {
     #[arg(default_value = "/etc/netlay/netlay.conf", short, long)]
     pub config_file: String,
 
+    /// Run as a background daemon, logs will be written to `/var/log/netlay/netlay.log`
+    #[arg(default_value_t = false, short, long)]
+    pub daemon_mode: bool,
+
     /// Only relay traffic according to this rule, bypassing the config file
     #[arg(short, long, value_name = "RELAY_URL")]
     pub relay: Option<String>,

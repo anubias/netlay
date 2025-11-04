@@ -7,12 +7,16 @@ netlay \- relay TCP and UDP traffic between networks
 [\fIOPTIONS\fR]
 
 .SH DESCRIPTION
-A command-line utility for asynchronously relaying TCP and UDP sockets between machines. Useful for bridging traffic across networks that are not directly routed together, and is ideal for development, maintenance, or debugging sessions.
+A command-line utility for asynchronously relaying TCP and UDP sockets between machines. Useful for bridging traffic across networks that are not directly routed together, and is ideal for development, maintenance, or debugging sessions. What makes this tool stand apart from other implementations is its asynchronous nature and configuration file support, for ease of use.
 
 .SH OPTIONS
 .TP
 .BR \-c ", " \-\-config-file " <CONFIG_FILE>"
 Path to the configuration file (default: /etc/netlay/netlay.conf).
+
+.TP
+.BR \-d ", " \-\-daemon-mode
+Run as a background daemon, logs will be written to `/var/log/netlay/netlay.log`.
 
 .TP
 .BR \-r ", " \-\-relay " <RELAY_URL>"
@@ -32,12 +36,15 @@ The \fBRELAY_URL\fR argument must be in the following format:
 .PP
 Where:
 .RS
-.IP \(bu 2
-\fBtcp|udp\fR: Socket type (TCP or UDP)
-.IP \(bu 2
-\fBIPv4_address\fR: Destination address to forward traffic to
-.IP \(bu 2
-\fBport_range\fR: Port number or range (e.g., 8080 or 8000..8010)
+.TP
+\fBtcp|udp\fR
+Socket type (TCP or UDP)
+.TP
+\fBIPv4_address\fR
+Destination address to forward traffic to
+.TP
+\fBport_range\fR
+Port number or range (e.g., 8080 or 8000..8010)
 .RE
 
 .SH EXAMPLES
