@@ -91,10 +91,7 @@ fn init_logging(daemon_mode: bool) -> std::io::Result<()> {
 
     if let Err(e) = log_dispatch.apply() {
         eprintln!("Failed to initialize logging: {e}");
-        return std::io::Result::Err(std::io::Error::new(
-            std::io::ErrorKind::Other,
-            "Failed to initialize logging",
-        ));
+        return std::io::Result::Err(std::io::Error::other("Failed to initialize logging"));
     }
 
     Ok(())
@@ -162,7 +159,7 @@ fn redirect_stdio_to_devnull() -> std::io::Result<()> {
 
 fn discriminate_relay(relay: &Relay) {
     match relay.protocol {
-        config::Protocol::TCP => match relay.port_range {
+        config::Protocol::Tcp => match relay.port_range {
             config::PortRange::Single(port) => relay_tcp_port(relay.addr, port),
             config::PortRange::Range { begin, end } => {
                 for port in begin..=end {
@@ -170,7 +167,7 @@ fn discriminate_relay(relay: &Relay) {
                 }
             }
         },
-        config::Protocol::UDP => match relay.port_range {
+        config::Protocol::Udp => match relay.port_range {
             config::PortRange::Single(port) => relay_udp_port(relay.addr, port),
             config::PortRange::Range { begin, end } => {
                 for port in begin..=end {

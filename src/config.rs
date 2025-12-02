@@ -39,20 +39,21 @@ impl<'de> Deserialize<'de> for Relay {
         D: Deserializer<'de>,
     {
         let s = String::deserialize(deserializer)?;
+
         if let Some((protocol, target)) = s.split_once("://") {
             let protocol = protocol.parse().map_err(serde::de::Error::custom)?;
             if let Some((addr, port)) = target.rsplit_once(':') {
                 let addr = addr.parse().map_err(serde::de::Error::custom)?;
                 let port_range = port.parse().map_err(serde::de::Error::custom)?;
-                return Ok(Relay {
+                Ok(Relay {
                     protocol,
                     addr,
                     port_range,
-                });
+                })
             } else {
-                return Err(serde::de::Error::custom(format!(
+                Err(serde::de::Error::custom(format!(
                     "Invalid target format: {target}"
-                )));
+                )))
             }
         } else {
             Err(serde::de::Error::custom(format!(
@@ -64,8 +65,8 @@ impl<'de> Deserialize<'de> for Relay {
 
 #[derive(Debug)]
 pub enum Protocol {
-    TCP,
-    UDP,
+    Tcp,
+    Udp,
 }
 
 impl FromStr for Protocol {
@@ -73,8 +74,8 @@ impl FromStr for Protocol {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().as_str() {
-            "tcp" => Ok(Protocol::TCP),
-            "udp" => Ok(Protocol::UDP),
+            "tcp" => Ok(Protocol::Tcp),
+            "udp" => Ok(Protocol::Udp),
             _ => Err(format!("Invalid protocol: {s}")),
         }
     }
