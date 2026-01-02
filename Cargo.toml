@@ -1,6 +1,7 @@
 [package]
 name = "netlay"
 description = "Netlay is a command-line Linux utility for asynchronously relaying TCP and UDP sockets between machines."
+repository = "https://github.com/anubias/netlay"
 version = "0.1.0"
 edition = "2024"
 authors = ["Aurelian Pop <8299590+anubias@users.noreply.github.com>"]
@@ -11,26 +12,27 @@ license = "MIT"
 chrono = "0.4"
 clap = { version = "4.5", features = ["derive"] }
 fern = "0.7"
-libc = "0.2"
 log = "0.4"
 serde = { version = "1.0", features = ["derive"] }
 tokio = { version = "1.48", features = ["full"] }
 toml = "0.9"
 
 [package.metadata.deb]
+extended-description = ""
 copyright = "Copyright © 2025 Aurelian Pop"
 license-file = ["LICENSE", "1"]
 section = "net"
 priority = "optional"
+depends = ["$auto", "systemd (>= 215)"]
 assets = [
     [
-        "target/release/netlay",
-        "/usr/bin/netlay",
-        "755",
+        "res/debian/netlay.1",
+        "/usr/share/man/man1/netlay.1",
+        "644",
     ],
     [
-        "res/netlay.1",
-        "/usr/share/man/man1/netlay.1",
+        "res/debian/netlay.sysusers",
+        "/usr/lib/sysusers.d/netlay.conf",
         "644",
     ],
     [
@@ -39,12 +41,19 @@ assets = [
         "644",
     ],
     [
-        "res/netlay.log",
-        "/var/log/netlay/netlay.log",
-        "644",
+        "target/release/netlay",
+        "/usr/bin/netlay",
+        "755",
     ],
 ]
 breaks = "netlay"
 conflicts = "netlay"
 provides = "netlay"
 replaces = "netlay"
+maintainer-scripts = "res/debian/maintainer-scripts"
+
+[package.metadata.deb.systemd-units]
+unit-scripts = "res/debian"
+enable = true
+start = true
+restart-after-upgrade = true

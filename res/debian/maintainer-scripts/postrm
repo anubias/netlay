@@ -1,0 +1,19 @@
+
+#!/bin/sh
+set -e
+
+case "$1" in
+    remove)
+        # Remove user and group if they exist
+        if id netlay >/dev/null 2>&1; then
+            deluser --system netlay || true
+        fi
+        if getent group netlay >/dev/null 2>&1; then
+            delgroup --system netlay || true
+        fi
+        ;;
+esac
+
+#DEBHELPER#
+
+exit 0

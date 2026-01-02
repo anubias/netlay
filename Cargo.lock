@@ -288,7 +288,6 @@ dependencies = [
  "chrono",
  "clap",
  "fern",
- "libc",
  "log",
  "serde",
  "tokio",

@@ -1,10 +1,4 @@
-use std::{
-    env,
-    fs::OpenOptions,
-    net::{Ipv4Addr, SocketAddr},
-    os::unix::io::AsRawFd,
-    process::exit,
-};
+use std::net::{Ipv4Addr, SocketAddr};
 
 use chrono::Local;
 use fern::Dispatch;
@@ -21,12 +15,9 @@ mod cmdline;
 mod config;
 
 fn main() -> std::io::Result<()> {
-    let args = cmdline::Args::parse();
-    init_logging(args.daemon_mode)?;
+    init_logging()?;
 
-    if args.daemon_mode {
-        daemonize()?;
-    }
+    let args = cmdline::Args::parse();
     async_main(args);
 
     Ok(())
@@ -62,7 +53,7 @@ async fn async_main(args: cmdline::Args) {
     }
 }
 
-fn init_logging(daemon_mode: bool) -> std::io::Result<()> {
+fn init_logging() -> std::io::Result<()> {
     let mut log_dispatch = Dispatch::new()
         .format(|out, message, record| {
             out.finish(format_args!(
@@ -74,86 +65,13 @@ fn init_logging(daemon_mode: bool) -> std::io::Result<()> {
         })
         .level(LevelFilter::Info);
 
-    if daemon_mode {
-        const LOG_FILE_NAME: &str = "/var/log/netlay/netlay.log";
-
-        let log_file_res = fern::log_file(LOG_FILE_NAME);
-        log_dispatch = match log_file_res {
-            Ok(log_file) => log_dispatch.chain(log_file),
-            Err(e) => {
-                eprintln!("Failed to open log file {LOG_FILE_NAME}: {e}");
-                return std::io::Result::Err(e);
-            }
-        };
-    } else {
-        log_dispatch = log_dispatch.chain(std::io::stdout());
-    }
+    log_dispatch = log_dispatch.chain(std::io::stdout());
 
     if let Err(e) = log_dispatch.apply() {
         eprintln!("Failed to initialize logging: {e}");
         return std::io::Result::Err(std::io::Error::other("Failed to initialize logging"));
     }
 
-    Ok(())
-}
-
-fn daemonize() -> std::io::Result<()> {
-    // Double-fork daemonization
-    unsafe {
-        match libc::fork() {
-            -1 => return Err(std::io::Error::last_os_error()),
-            0 => {}                 //child continues
-            _parent_pid => exit(0), // parent exits
-        }
-
-        // Create a new session and become session leader
-        if libc::setsid() == -1 {
-            eprintln!("Failed to create new session for daemon process");
-            return Err(std::io::Error::last_os_error());
-        }
-
-        // Second fork to prevent reacquiring a controlling terminal
-        match libc::fork() {
-            -1 => return Err(std::io::Error::last_os_error()),
-            0 => {}                 // grandchild continues
-            _parent_pid => exit(0), // intermediate exits
-        }
-    }
-
-    // reset file mode creation mask
-    unsafe { libc::umask(0) };
-
-    // change working dir to root
-    env::set_current_dir("/")?;
-
-    // redirect stdio to /dev/null (reuse existing helper)
-    redirect_stdio_to_devnull()?;
-
-    Ok(())
-}
-
-fn redirect_stdio_to_devnull() -> std::io::Result<()> {
-    // Open /dev/null for read+write
-    let devnull = OpenOptions::new()
-        .read(true)
-        .write(true)
-        .open("/dev/null")?;
-    let fd = devnull.as_raw_fd();
-
-    // Duplicate /dev/null onto stdin/stdout/stderr
-    unsafe {
-        if libc::dup2(fd, libc::STDIN_FILENO) == -1 {
-            return Err(std::io::Error::last_os_error());
-        }
-        if libc::dup2(fd, libc::STDOUT_FILENO) == -1 {
-            return Err(std::io::Error::last_os_error());
-        }
-        if libc::dup2(fd, libc::STDERR_FILENO) == -1 {
-            return Err(std::io::Error::last_os_error());
-        }
-    }
-
-    // devnull is dropped here; the duplicated fds remain valid
     Ok(())
 }
 
