@@ -56,7 +56,7 @@ netlay --relay udp://192.168.100.200:1000..1010
 
 ## Configuration file example (`netlay.conf`)
 
-The configuration file(s) need to follow the TOML syntax. An example is depicted below:
+The main usecase for netlay would be to run as a background service, with the default configuration file. The configuration file(s) need to follow the TOML syntax. An example is depicted below:
 
 ```toml
 relays = [
@@ -68,7 +68,7 @@ relays = [
 
 ## How it works
 
-What makes this utility stand out is the use of asynchronous processing (via [Tokio](https://tokio.rs/)) to efficiently relay traffic. Unlike synchronous tools that require a thread per connection, `netlay` leverages a thread pool sized to available CPU cores, enabling high performance and scalability for many simultaneous connections.
+What makes this utility stand out is the use of asynchronous processing (via [Tokio](https://tokio.rs/)) to efficiently relay network traffic. Unlike synchronous tools that require one thread per connection, `netlay` leverages a thread pool sized to the number of available CPU cores, enabling high performance and scalability for many simultaneous connections.
 
 ## License
 
