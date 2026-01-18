@@ -46,6 +46,7 @@ assets = [
         "755",
     ],
 ]
+conf-files = ["/etc/netlay/netlay.conf"]
 breaks = "netlay"
 conflicts = "netlay"
 provides = "netlay"
