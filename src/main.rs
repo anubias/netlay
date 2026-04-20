@@ -75,30 +75,35 @@ fn init_logging() -> std::io::Result<()> {
     Ok(())
 }
 
-fn discriminate_relay(relay: &Relay) {
-    match relay.protocol {
-        config::Protocol::Tcp => match relay.port_range {
-            config::PortRange::Single(port) => relay_tcp_port(relay.addr, port),
-            config::PortRange::Range { begin, end } => {
-                for port in begin..=end {
-                    relay_tcp_port(relay.addr, port);
-                }
-            }
-        },
-        config::Protocol::Udp => match relay.port_range {
-            config::PortRange::Single(port) => relay_udp_port(relay.addr, port),
-            config::PortRange::Range { begin, end } => {
-                for port in begin..=end {
-                    relay_udp_port(relay.addr, port);
-                }
-            }
-        },
+fn determine_local_port(relay: &Relay) -> u16 {
+    if let Some(port) = relay.local_port {
+        port
+    } else {
+        match relay.remote_ports {
+            config::PortRange::Single(port) => port,
+            config::PortRange::Range { begin, .. } => begin,
+        }
     }
 }
 
-fn relay_tcp_port(addr: Ipv4Addr, port: u16) {
-    let local_addr = SocketAddr::from(([0, 0, 0, 0], port));
-    let remote_addr = SocketAddr::from((addr, port));
+fn discriminate_relay(relay: &Relay) {
+    let (remote_start_port, remote_end_port) = match relay.remote_ports {
+        config::PortRange::Single(port) => (port, port),
+        config::PortRange::Range { begin, end } => (begin, end),
+    };
+
+    for remote_port in remote_start_port..=remote_end_port {
+        let local_port = determine_local_port(relay) + (remote_port - remote_start_port);
+        match relay.protocol {
+            config::Protocol::Tcp => relay_tcp_port(relay.addr, local_port, remote_port),
+            config::Protocol::Udp => relay_udp_port(relay.addr, local_port, remote_port),
+        }
+    }
+}
+
+fn relay_tcp_port(addr: Ipv4Addr, local_port: u16, remote_port: u16) {
+    let local_addr = SocketAddr::from(([0, 0, 0, 0], local_port));
+    let remote_addr = SocketAddr::from((addr, remote_port));
 
     tokio::spawn(async move {
         let listener = match TcpListener::bind(local_addr).await {
@@ -109,13 +114,12 @@ fn relay_tcp_port(addr: Ipv4Addr, port: u16) {
             }
         };
 
-        info!("Listening on local TCP port {port} ...");
-
+        info!("Listening on local TCP port {local_port} ...");
         loop {
             match listener.accept().await {
                 Ok((inbound, _)) => {
                     info!(
-                        "Accepted TCP connection from {} on local port {port}",
+                        "Accepted TCP connection from {} on local port {local_port}",
                         inbound.peer_addr().unwrap_or(remote_addr)
                     );
                     //Start a new task to handle this connection independently while waiting for another one.
@@ -151,9 +155,9 @@ fn connect_and_transfer_tcp_traffic(remote_addr: SocketAddr, mut inbound: TcpStr
     });
 }
 
-fn relay_udp_port(addr: Ipv4Addr, port: u16) {
-    let local_addr = SocketAddr::from(([0, 0, 0, 0], port));
-    let remote_addr = SocketAddr::from((addr, port)); // same port
+fn relay_udp_port(addr: Ipv4Addr, local_port: u16, remote_port: u16) {
+    let local_addr = SocketAddr::from(([0, 0, 0, 0], local_port));
+    let remote_addr = SocketAddr::from((addr, remote_port)); // same port
 
     tokio::spawn(async move {
         let socket = match UdpSocket::bind(local_addr).await {
@@ -164,14 +168,14 @@ fn relay_udp_port(addr: Ipv4Addr, port: u16) {
             }
         };
 
-        info!("Listening on local UDP port {port} ...");
+        info!("Listening on local UDP port {local_port} ...");
 
         const BUFFER_SIZE: usize = 65536; // Using maximum UDP packet size, to avoid loss of data
         let mut buf = vec![0u8; BUFFER_SIZE];
         loop {
             match socket.recv_from(&mut buf).await {
                 Ok((recv_len, src_addr)) => {
-                    debug!("Received UDP packet ({recv_len} bytes) from {src_addr} on local port {port}");
+                    debug!("Received UDP packet ({recv_len} bytes) from {src_addr} on local port {local_port}");
                     if recv_len == BUFFER_SIZE {
                         warn!("Received UDP packet may be truncated (UDP packet size equals to internal buffer size)");
                     }

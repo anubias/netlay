@@ -30,7 +30,8 @@ impl Config {
 pub struct Relay {
     pub protocol: Protocol,
     pub addr: std::net::Ipv4Addr,
-    pub port_range: PortRange,
+    pub local_port: Option<u16>,
+    pub remote_ports: PortRange,
 }
 
 impl<'de> Deserialize<'de> for Relay {
@@ -39,16 +40,27 @@ impl<'de> Deserialize<'de> for Relay {
         D: Deserializer<'de>,
     {
         let s = String::deserialize(deserializer)?;
+        let mut local_port = None;
+        let mut rest = s.as_str();
 
-        if let Some((protocol, target)) = s.split_once("://") {
+        if let Some((left, right)) = s.split_once(';') {
+            rest = right;
+            local_port = Some(
+                left.parse()
+                    .map_err(|_| serde::de::Error::custom(format!("Invalid local port {left}")))?,
+            );
+        }
+
+        if let Some((protocol, target)) = rest.split_once("://") {
             let protocol = protocol.parse().map_err(serde::de::Error::custom)?;
             if let Some((addr, port)) = target.rsplit_once(':') {
                 let addr = addr.parse().map_err(serde::de::Error::custom)?;
-                let port_range = port.parse().map_err(serde::de::Error::custom)?;
+                let remote_ports = port.parse().map_err(serde::de::Error::custom)?;
                 Ok(Relay {
                     protocol,
                     addr,
-                    port_range,
+                    local_port,
+                    remote_ports,
                 })
             } else {
                 Err(serde::de::Error::custom(format!(

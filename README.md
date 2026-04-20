@@ -92,7 +92,8 @@ The main usecase for netlay would be to run as a background service, with the de
 relays = [
     "tcp://192.168.1.100:8080",
     "udp://192.168.1.101:5353",
-    "tcp://10.0.0.2:8000..8010"
+    "tcp://10.0.0.2:8000..8010",
+    "2222;tcp://192.10.20.30:22",
 ]
 ```
 
@@ -101,11 +102,12 @@ relays = [
 As you can see from the provided configuration example, a relay URL line must follow this syntax:
 
 ```text
-<tcp|udp>://<IPv4_address>:<port_range>
+[local_port;]<tcp|udp>://<IPv4_address>:<port_range>
 ```
 
 where:
 
+- `local_port`: An optional port value used for local binding. If missing, the same values as the remote port(s) are used
 - `<tcp|udp>`: Socket type (TCP or UDP)
 - `<IPv4_address>`: Destination address to forward traffic to
 - `<port_range>`: Port number or range (e.g., `8080` or `8000..8010`)

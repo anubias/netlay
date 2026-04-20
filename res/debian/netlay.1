@@ -27,11 +27,14 @@ Print help information.
 The \fBRELAY_URL\fR argument must be in the following format:
 .PP
 .RS
-<tcp|udp>://<IPv4_address>:<port_range>
+[local_port;]<tcp|udp>://<IPv4_address>:<remote_port_range>
 .RE
 .PP
 Where:
 .RS
+.TP
+\fBlocal_port\fR
+Optional local port to bind on, or - if omitted - the same as the remote port(s). If specified in conjunction with remote port ranges, the value specifies the start of the local port range.
 .TP
 \fBtcp|udp\fR
 Socket type (TCP or UDP)
@@ -39,8 +42,8 @@ Socket type (TCP or UDP)
 \fBIPv4_address\fR
 Destination address to forward traffic to
 .TP
-\fBport_range\fR
-Port number or range (e.g., 8080 or 8000..8010)
+\fBremote_port_range\fR
+Remote port number or range (e.g., 8080 or 8000..8010)
 .RE
 
 .SH EXAMPLES
@@ -58,6 +61,11 @@ netlay --relay tcp://192.168.100.200:80
 Relay UDP traffic on all ports between 1000 and 1010 to 192.168.100.200:
 .B
 netlay --relay udp://192.168.100.200:1000..1010
+
+.TP
+Relay TCP traffic from local port 2222 to remote port 22 on 1.2.3.4 (using the optional local port prefix):
+.B
+netlay --relay 2222;tcp://1.2.3.4:22
 
 .SH CONFIGURATION FILE
 .PP
