@@ -2,7 +2,7 @@
 name = "netlay"
 description = "Netlay is a command-line Linux utility for asynchronously relaying TCP and UDP sockets between machines."
 repository = "https://github.com/anubias/netlay"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
 authors = ["Aurelian Pop <8299590+anubias@users.noreply.github.com>"]
 readme = "README.md"
